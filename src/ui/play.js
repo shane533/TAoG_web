@@ -232,10 +232,11 @@ export function createPlayView({ store, onContinue, onSolved }) {
       `区域 ${info.length} 个　已划 ${board.assignedCells}/${board.totalCells} 格` +
       (unassigned ? `　剩 ${unassigned} 格` : '');
 
-    // 顶部提示随进度变化
+    // 顶部提示随进度变化。措辞要对触屏也成立 —— 别写「左键 / 鼠标」，
+    // 手机上那行字就在棋盘正上方，写错了很显眼。
     const hint = $('#hint-text');
     if (result.ok) hint.textContent = '✓ 已满足全部规则。';
-    else if (!result.complete) hint.textContent = '左键拖动鼠标合并区域。';
+    else if (!result.complete) hint.textContent = '在格内拖动即可划分区域。';
     else hint.textContent = '规则尚未全部满足，继续调整。';
 
     // 通关

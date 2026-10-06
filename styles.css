@@ -704,8 +704,13 @@ button { -webkit-tap-highlight-color: transparent; }
     gap: 10px;
     padding: 10px;
   }
-  /* 棋盘优先：中栏排到最前，工具/规则跟在后面 */
+  /* 顺序：规则卡 -> 棋盘 -> 工具/颜色/操作。
+     规则卡放最前面，进新关第一眼就能读到，不必先往下拖一大段。
+     （全量统计：平均 1.94 张、90% 的关卡不超过 3 张、最多 4 张，
+       所以放上面不会把棋盘顶到屏幕外面去。） */
+  #panel-right { order: -2; }
   #panel-center { order: -1; }
+  #panel-left { order: 0; }
   #panel-left, #panel-right { min-height: 0; }
 
   /* 高度取「视口高度」与「可用宽度」的较小者：棋盘接近方形，
@@ -737,10 +742,59 @@ button { -webkit-tap-highlight-color: transparent; }
   #panel-left { grid-template-columns: minmax(0, 1fr); }
 
   .card { padding: 11px 12px; }
-  .card.rulecard { padding: 12px 13px; gap: 11px; }
-  .rulecard .r-icon { width: 46px; height: 46px; }
-  .rulecard .r-name { font-size: 15px; }
-  .rulecard .r-desc { font-size: 12.5px; }
+  /* 规则卡在手机上放棋盘上方，得压扁一点，一屏才装得下。
+     ⚠️ 必须带 #panel-right 前缀：上面有 `#panel-right .card { padding: 14px 16px }`，
+     那是 ID 选择器（1,1,0），光写 `.card.rulecard`（0,2,0）压不过它，
+     内边距会一直保持 14/16。 */
+  #panel-right .card.rulecard { padding: 8px 11px; gap: 9px; }
+  #panel-right .rulecard .r-icon { width: 36px; height: 36px; }
+  #panel-right .rulecard .r-name { font-size: 13.5px; }
+  #panel-right .rulecard .r-desc { font-size: 11.5px; line-height: 1.32; }
+  #panel-right .rulecard .mark { font-size: 15px; }
+  /* 形状池卡也收一收 */
+  #panel-right .card { padding: 10px 11px; }
+  #panel-right #shape-card .shape-box svg { width: 34px; height: 34px; }
+  /* 右栏此时在最上面，别再有「垂直居中」留下的空档 */
+  #panel-right .scroll { flex: none; overflow: visible; }
+  #right-inner { margin: 0; }
+  /* 规则卡之间也别隔太开 */
+  #rule-list { gap: 8px; }
+
+  /* ---- 工具一行 / 色板一行：把竖着堆的两张卡压成两条，省下的高度还给棋盘 ---- */
+  /* 工具：四个并排，图标在上、名字在下 */
+  #panel-left #tool-list {
+    display: grid;
+    /* 有几个工具就铺几列、恰好占满一行（现在 3 个；以后加减也不用改这里） */
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  #panel-left .tool {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 10px 3px;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.1;
+  }
+  #panel-left .tool .ti { font-size: 20px; line-height: 1; }
+  #panel-left .tool .tl { flex: none; }
+
+  /* 色板：12 个铺成一行。窄屏上每个约 25px —— 一行放得下的上限，
+     再大就得换行（那就不是「一行」了）。 */
+  #panel-left #swatches {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 4px;
+  }
+  /* 12 个挤一行时，横向内边距让给色块更划算 —— 每个能大 2px */
+  #panel-left .card:has(#swatches) { padding-left: 9px; padding-right: 9px; }
+
+  /* 上面两张卡给得宽裕些 */
+  #panel-left .card { padding: 13px 12px; }
+  #panel-left .card h3 { margin-bottom: 9px; }
+  #panel-left .card .hint { margin-top: 9px; }
 
   /* 选关抽屉占满整屏 */
   #drawer { width: 100%; }

@@ -10,7 +10,7 @@
 
 export const VERSION = {
   major: 0,
-  minor: 11,
+  minor: 13,
   patch: 0,
   /** 本次构建时间，用于进一步确认不是缓存 */
   built: '2026-10-05',
