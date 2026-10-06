@@ -283,11 +283,14 @@ export function ruleIcon(icon, size = 46) {
 
     // 每种符号在每个区域里恰好出现一次：红框 2x2 + 两个符号
     case 'rose': {
-      svg.appendChild(rect(3, 3, 34, 34, 'none', ROSE, 1.6, 5));
-      svg.appendChild(line(20, 3, 20, 37, GRID, 1));
-      svg.appendChild(line(3, 20, 37, 20, GRID, 1));
-      svg.appendChild(poly('11,6 16,11 11,16 6,11', INK, INK, 0));
-      svg.appendChild(rect(26, 26, 6, 6, INK, 'none', 0, 1));
+      // 玫瑰窗：**每种符号形状都不一样**，所以图标也画两种不同的形状
+      // （对照 ref/玫瑰窗.png：一个是红色圆花窗，一个是蓝色方瓷砖）。
+      svg.appendChild(mk('circle', {
+        cx: 13, cy: 20, r: 10, fill: '#c0392f', stroke: ROSE, 'stroke-width': 1.6,
+      }));
+      svg.appendChild(mk('circle', { cx: 13, cy: 20, r: 3.4, fill: '#e8a03c' }));
+      svg.appendChild(rect(20, 13, 14, 14, '#2f6fa8', ROSE, 1.6, 1.5));
+      svg.appendChild(rect(24, 17, 6, 6, 'none', '#8fd0e8', 1.6, 0.5));
       break;
     }
 

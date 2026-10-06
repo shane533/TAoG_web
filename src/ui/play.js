@@ -216,15 +216,9 @@ export function createPlayView({ store, onContinue, onSolved }) {
     // 「形状池」不自成一张卡 —— 下面那张形状池卡会直接把形状画出来，
     // 游戏里也是这个形态（同一件事不该出现两张卡）。
     const statements = result.statements.filter((st) => st.id !== 'shape-pool');
-    if (!statements.length) {
-      statements.push({
-        id: 'divide',
-        name: '划分区域',
-        desc: '把棋盘划分成若干区域（区域之间由墙分隔）。',
-        icon: { kind: 'divide' },
-        done: result.complete,
-      });
-    }
+    // 「划分区域」是**每一关都有的基本玩法**，不是这一关的特殊规则，
+    // 游戏里也不给每关都挂一张这样的卡（用户明确要求去掉）。
+    // 没有任何特殊规则时就让它空着 —— 空着比塞一张废话卡诚实。
     for (const st of statements) box.appendChild(ruleCard(st));
 
     const unassigned = board.totalCells - board.assignedCells;

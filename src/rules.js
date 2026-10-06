@@ -401,7 +401,9 @@ export function validate(board) {
   if (rules.one_symbol_per_region) {
     const bad = infos.filter((i) => i.symbols.length !== 1);
     statements.push({
-      id: 'one-symbol-per-region', name: '独居', desc: '每个区域包含单独一个符号。',
+      id: 'one-symbol-per-region', name: '独居',
+      // 「包含单独一个符号」语法别扭；实现判的是 length !== 1（恰好一个）
+      desc: '每个区域只能包含一个符号。',
       icon: { kind: 'solitude' }, done: infos.length > 0 && bad.length === 0,
     });
     if (bad.length) violations.push(`有 ${bad.length} 个区域的符号数不是 1`);
@@ -454,26 +456,28 @@ export function validate(board) {
   }
 
   // ---- 玫瑰窗 P<n>：每种 P 编号在每个区域里各出现一次
-  {
+  //
+  // ⚠️ 判定条件必须看**关卡声明了哪些符号**（`hasSymbol`），不能看当前涂色分出来的区域
+  //    （`infos`）—— 否则刚进关卡、棋盘还是空的时候一个区域都没有，
+  //    这张规则卡就整个消失了（和面积/拼块/围栏当初那个 bug 一模一样）。
+  if (hasSymbol(/^P\d+$/)) {
     const idxs = new Set();
     for (const i of infos) for (const s of i.symbols) {
       const m = /^P(\d+)$/.exec(s);
       if (m) idxs.add(m[1]);
     }
-    if (idxs.size) {
-      const bad = [];
-      for (const n of idxs) {
-        for (const i of infos) {
-          const cnt = i.symbols.filter((s) => s === `P${n}`).length;
-          if (cnt !== 1) bad.push(`区域含 P${n} 共 ${cnt} 个，应恰好 1 个`);
-        }
+    const bad = [];
+    for (const n of idxs) {
+      for (const i of infos) {
+        const cnt = i.symbols.filter((s) => s === `P${n}`).length;
+        if (cnt !== 1) bad.push(`区域含 P${n} 共 ${cnt} 个，应恰好 1 个`);
       }
-      statements.push({
-        id: 'rose-window', name: '玫瑰窗', desc: '每种符号每个区域必须各包含一个。',
-        icon: { kind: 'rose' }, done: bad.length === 0,
-      });
-      violations.push(...bad);
     }
+    statements.push({
+      id: 'rose-window', name: '玫瑰窗', desc: '每种符号每个区域必须各包含一个。',
+      icon: { kind: 'rose' }, done: bad.length === 0,
+    });
+    violations.push(...bad);
   }
 
   // ---- 围栏 F<n>：该格自身四条区域边界构成的图案（可旋转）
@@ -557,7 +561,8 @@ export function validate(board) {
     if (hasSymbol(/[UDLR]\d/)) {
       statements.push({
         id: 'compass', name: '罗盘',
-        desc: '显示该单元格所属区域的各方向半平面单元的个数。',
+        // 游戏内的原文表述；「半平面单元」那种说法是我自己编的，容易看不懂
+        desc: '显示该单元格所属区域内，各方向其他单元格的数量。',
         icon: { kind: 'compass' }, done: bad.length === 0,
       });
       violations.push(...bad);

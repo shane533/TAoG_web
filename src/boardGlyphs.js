@@ -24,8 +24,6 @@ const POLY_LINE = '#4a3d2c';
 const ROSE_LINE = '#3a2f22';
 
 // 玫瑰窗按 (n-1)%6 取色：主色 + 同色系浅色
-const ROSE_HUES = ['#b4453c', '#2f6fa8', '#c9a227', '#4f8f45', '#7a5aa5', '#c2703a'];
-const ROSE_TINTS = ['#e08a80', '#7fb0d8', '#f0dc8a', '#9fd08f', '#b9a5d8', '#e8a878'];
 
 // 唯一的线宽系数：所有徽章共用，保证粗细完全一致
 const BADGE_STROKE = 0.018;
@@ -157,52 +155,152 @@ function polyGlyph(n, rawText, size, ctx) {
 }
 
 /* ---------- A2. 玫瑰窗 P<n> ---------- */
+/*
+ * 玫瑰窗有 5 种（语料里 P1..P5；每关最多同时出现 5 种）。
+ *
+ * 之前只按颜色区分（同一个圆花窗换 6 套配色）—— 那是错的：
+ * 对照 ref/玫瑰窗.png，游戏里**每种符号的形状根本不一样**：
+ *   · 一种是**圆形**的红金玫瑰花窗
+ *   · 另一种是**方形**的蓝色格纹瓷砖
+ * 光换颜色在色弱 / 小屏上根本分不出来，必须**形状**就不同。
+ *
+ * P1/P2 的形状与配色是照着参考截图定的；P3~P5 参考图里没有，
+ * 按同一套视觉语言补了三角 / 六边形 / 菱形，保证两两可辨。
+ */
 
-function roseGlyph(n, size) {
-  const g = mk('g', { class: 'sym-rose' });
-  const R = size * 0.3;
-  const idx = (((n - 1) % ROSE_HUES.length) + ROSE_HUES.length) % ROSE_HUES.length;
-  const base = ROSE_HUES[idx];
-  const tint = ROSE_TINTS[idx];
+/** 画一个正多边形（顶点朝上） */
+function polyPoints(sides, r, rotateDeg) {
+  const pts = [];
+  for (let i = 0; i < sides; i++) {
+    const a = (i / sides) * Math.PI * 2 - Math.PI / 2 + (rotateDeg || 0) * Math.PI / 180;
+    pts.push(`${(Math.cos(a) * r).toFixed(2)},${(Math.sin(a) * r).toFixed(2)}`);
+  }
+  return pts.join(' ');
+}
 
-  // 外圈：填主色，靠花瓣的浅色透出彩窗感
+/** 圆形玫瑰花窗：外圈 + 8 片花瓣 + 中心钉（P1） */
+function roseCircle(size, base, tint) {
+  const g = mk('g', {});
+  const R = size * 0.30;
   g.appendChild(mk('circle', {
-    cx: 0,
-    cy: 0,
-    r: R,
-    fill: base,
-    stroke: ROSE_LINE,
-    'stroke-width': size * 0.02,
-    class: 'sym-rose-ring',
+    cx: 0, cy: 0, r: R, fill: base, stroke: ROSE_LINE,
+    'stroke-width': size * 0.02, class: 'sym-rose-ring',
   }));
-
-  // 8 片花瓣：细长圆头矩形，绕中心旋转 45° 递增
   const pw = R * 0.34;
   const ph = R * 0.68;
   for (let k = 0; k < 8; k++) {
     g.appendChild(mk('rect', {
-      x: -pw / 2,
-      y: -R * 0.9,
-      width: pw,
-      height: ph,
-      rx: pw / 2,
-      ry: pw / 2,
-      fill: tint,
-      class: 'sym-rose-petal',
+      x: -pw / 2, y: -R * 0.9, width: pw, height: ph,
+      rx: pw / 2, ry: pw / 2, fill: tint, class: 'sym-rose-petal',
       transform: 'rotate(' + k * 45 + ')',
     }));
   }
-
-  // 中心的圆钉
   g.appendChild(mk('circle', {
-    cx: 0,
-    cy: 0,
-    r: R * 0.26,
-    fill: tint,
-    stroke: ROSE_LINE,
-    'stroke-width': size * 0.014,
-    class: 'sym-rose-core',
+    cx: 0, cy: 0, r: R * 0.26, fill: tint, stroke: ROSE_LINE,
+    'stroke-width': size * 0.014, class: 'sym-rose-core',
   }));
+  return g;
+}
+
+/** 方形格纹瓷砖：外方 + 内方 + 中心菱格（P2） */
+function roseSquare(size, base, tint) {
+  const g = mk('g', {});
+  const H = size * 0.27;
+  g.appendChild(mk('rect', {
+    x: -H, y: -H, width: H * 2, height: H * 2, rx: size * 0.015,
+    fill: base, stroke: ROSE_LINE, 'stroke-width': size * 0.02,
+    class: 'sym-rose-ring',
+  }));
+  for (const f of [0.66, 0.38]) {
+    g.appendChild(mk('rect', {
+      x: -H * f, y: -H * f, width: H * f * 2, height: H * f * 2,
+      fill: 'none', stroke: tint, 'stroke-width': size * 0.022,
+      class: 'sym-rose-petal',
+    }));
+  }
+  g.appendChild(mk('polygon', {
+    points: polyPoints(4, H * 0.3, 0), fill: tint, stroke: ROSE_LINE,
+    'stroke-width': size * 0.014, class: 'sym-rose-core',
+  }));
+  return g;
+}
+
+/** 三角形花窗（P3） */
+function roseTri(size, base, tint) {
+  const g = mk('g', {});
+  const R = size * 0.31;
+  g.appendChild(mk('polygon', {
+    points: polyPoints(3, R, 0), fill: base, stroke: ROSE_LINE,
+    'stroke-width': size * 0.02, class: 'sym-rose-ring',
+  }));
+  g.appendChild(mk('polygon', {
+    points: polyPoints(3, R * 0.62, 180), fill: tint, stroke: ROSE_LINE,
+    'stroke-width': size * 0.016, class: 'sym-rose-petal',
+  }));
+  g.appendChild(mk('circle', {
+    cx: 0, cy: R * 0.06, r: R * 0.16, fill: base, stroke: ROSE_LINE,
+    'stroke-width': size * 0.014, class: 'sym-rose-core',
+  }));
+  return g;
+}
+
+/** 六边形花窗（P4） */
+function roseHex(size, base, tint) {
+  const g = mk('g', {});
+  const R = size * 0.30;
+  g.appendChild(mk('polygon', {
+    points: polyPoints(6, R, 0), fill: base, stroke: ROSE_LINE,
+    'stroke-width': size * 0.02, class: 'sym-rose-ring',
+  }));
+  for (let k = 0; k < 6; k++) {
+    g.appendChild(mk('circle', {
+      cx: 0, cy: -R * 0.55, r: R * 0.18, fill: tint,
+      class: 'sym-rose-petal',
+      transform: 'rotate(' + k * 60 + ')',
+    }));
+  }
+  g.appendChild(mk('circle', {
+    cx: 0, cy: 0, r: R * 0.22, fill: tint, stroke: ROSE_LINE,
+    'stroke-width': size * 0.014, class: 'sym-rose-core',
+  }));
+  return g;
+}
+
+/** 菱形（旋转 45° 的方）花窗（P5） */
+function roseDiamond(size, base, tint) {
+  const g = mk('g', {});
+  const R = size * 0.31;
+  g.appendChild(mk('polygon', {
+    points: polyPoints(4, R, 0), fill: base, stroke: ROSE_LINE,
+    'stroke-width': size * 0.02, class: 'sym-rose-ring',
+  }));
+  g.appendChild(mk('polygon', {
+    points: polyPoints(4, R * 0.6, 0), fill: tint, stroke: ROSE_LINE,
+    'stroke-width': size * 0.016, class: 'sym-rose-petal',
+  }));
+  g.appendChild(mk('circle', {
+    cx: 0, cy: 0, r: R * 0.17, fill: base, stroke: ROSE_LINE,
+    'stroke-width': size * 0.014, class: 'sym-rose-core',
+  }));
+  return g;
+}
+
+/** P<n> 的五套外观：形状 + 配色都不一样 */
+const ROSE_KINDS = [
+  { draw: roseCircle, base: '#c0392f', tint: '#e8a03c' },   // P1 圆形 红金
+  { draw: roseSquare, base: '#2f6fa8', tint: '#8fd0e8' },   // P2 方形 蓝
+  { draw: roseTri,    base: '#4f8f45', tint: '#a8d89a' },   // P3 三角 绿
+  { draw: roseHex,    base: '#7a5aa5', tint: '#c3a8dc' },   // P4 六边 紫
+  { draw: roseDiamond, base: '#b8860b', tint: '#f0d68a' },  // P5 菱形 金
+];
+
+function roseGlyph(n, size) {
+  const g = mk('g', { class: 'sym-rose' });
+  const i = (((n - 1) % ROSE_KINDS.length) + ROSE_KINDS.length) % ROSE_KINDS.length;
+  const kind = ROSE_KINDS[i];
+  g.appendChild(kind.draw(size, kind.base, kind.tint));
+  // 编个号，方便测试断言「不同 P 画出来不一样」
+  g.setAttribute('data-rose', String(n));
   return g;
 }
 
