@@ -1,0 +1,29 @@
+# ---- 网页本身需要的（要提交）----
+# index.html / styles.css / favicon.svg / src/ / data/ / .nojekyll
+
+# ---- 开发用的，不要提交 ----
+# 游戏本体：1 GB（从 Steam 目录复制过来的，只用于解包分析）
+The Artisan of Glimmith/
+
+# 参考截图：约 148 MB
+ref/
+
+# 从 .pak 解出来的原始 .puz 与索引
+extracted/
+
+# 开发脚本与文档（Python / Node 工具、格式笔记）
+tools/
+docs/
+
+# 构建产物与临时文件
+dist/
+_scratch/
+_*
+!/.nojekyll
+
+# 系统 / 编辑器
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

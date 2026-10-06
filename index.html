@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#241d17">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="The Artisan of Glimmith 纯网页复刻版：区域分隔纸笔逻辑解谜，1225 关按游戏内 28 个地点组排列。">
+<title>The Artisan of Glimmith — 网页复刻版</title>
+<!-- 相对路径，可直接放到 GitHub Pages 的子目录下（如 /repo/） -->
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ 顶部栏 ============ -->
+<header id="topbar">
+  <button id="btn-home" class="pill" title="展开 / 收起关卡列表（Esc）">☰ 选关</button>
+  <div id="crumb">
+    <span id="crumb-zone"></span>
+    <span id="crumb-folder"></span>
+    <span id="crumb-id"></span>
+  </div>
+  <div class="spacer"></div>
+  <div id="progress-chip" class="pill static" title="通关进度">
+    <span id="progress-text">0 / 0</span>
+  </div>
+</header>
+
+<!-- ============ 主区：游戏页 ============ -->
+<section id="view-play" class="view">
+  <div id="play-empty">
+    <div class="pe-card">
+      <div class="pe-ico">🎨</div>
+      <div class="pe-t">从左侧选一关开始</div>
+      <div class="pe-s">点左上角「☰ 选关」展开关卡列表，或直接在里面输入关卡 ID 跳转</div>
+    </div>
+  </div>
+
+  <div id="play-grid">
+
+    <!-- 左栏：颜色 / 工具 -->
+    <aside id="panel-left">
+      <div class="card">
+        <h3>工具</h3>
+        <div id="tool-list">
+          <button class="tool active" data-mode="both" title="从格点（棱形）拖出＝画墙；在格内点/拖＝填充。单击永远算填充">
+            <span class="ti">🖌</span><span class="tl">填充 + 划线</span>
+          </button>
+          <button class="tool" data-mode="erase" title="擦除模式：贴着墙擦墙，否则擦掉这一格的涂色（相当于右键，触屏用）">
+            <span class="ti">🧽</span><span class="tl">擦除模式</span>
+          </button>
+          <button class="tool" data-mode="doodle" title="涂鸦模式：在棋盘上自由手绘，随手画箭头、圈重点。只影响你自己的笔记">
+            <span class="ti">✏️</span><span class="tl">涂鸦模式</span>
+          </button>
+        </div>
+        <p class="hint" id="mode-hint"></p>
+      </div>
+      <div class="card">
+        <h3>颜色</h3>
+        <div id="swatches"></div>
+        <p class="hint">填充模式下相邻区域不会自动合并，只有在一次拖动里同时划过两个区域时才会合并。</p>
+      </div>
+      <div class="card">
+        <h3>操作</h3>
+        <p class="hint">
+          <b>填充</b>：左键拖拽划过格子<br>
+          <b>划线</b>：左键沿格边拖拽画墙<br>
+          <b>擦除</b>：贴着墙擦墙，否则擦掉该格涂色<br>
+          鼠标右键 = 只擦掉该格涂色（不动墙）<br>
+          <span class="kbd">C</span> 清空区域　<span class="kbd">W</span> 清空所画的墙<br>
+          <span class="kbd">Z</span> 撤销　<span class="kbd">R</span> 重开<br>
+          <b>涂鸦</b>：左键随手画，右键撤掉最后一笔<br>
+          <span class="kbd">空格</span> 继续（下一关）　<span class="kbd">Esc</span> 关卡列表
+        </p>
+      </div>
+    </aside>
+
+    <!-- 中栏：提示 + 棋盘 -->
+    <main id="panel-center">
+      <div id="hint-banner">
+        <div id="hint-icon">🖱</div>
+        <div id="hint-text">从左侧关卡列表选一关开始。</div>
+      </div>
+      <div id="board-frame">
+        <div id="board-wrap">
+          <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+      <div id="board-caption">
+        <span id="level-title">未选择关卡</span>
+        <span id="level-meta"></span>
+      </div>
+      <button id="btn-continue" class="pill primary">继续</button>
+    </main>
+
+    <!-- 右栏：规则 / 形状池（每张卡都是羊皮纸，整体垂直居中） -->
+    <aside id="panel-right">
+      <div class="scroll">
+        <div id="right-inner">
+          <!-- 规则卡片由 renderRules() 逐条生成 -->
+          <div id="rule-list"></div>
+
+          <div class="card" id="shape-card">
+            <h3>形状池</h3>
+            <p class="hint" id="shape-caption">所有区域必须呈以下形状：</p>
+            <div class="shapes" id="shapes"></div>
+          </div>
+
+          <p class="hint" id="stats"></p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer id="bottombar">
+    <button id="btn-undo" class="pill">↶ 撤销</button>
+    <button id="btn-restart" class="pill">↻ 重新开始</button>
+    <div class="spacer"></div>
+    <span id="difficulty-chip" class="pill static">难度 —</span>
+    <span id="version-badge" class="pill static mono" title="当前页面版本">版本载入中…</span>
+  </footer>
+</section>
+
+<!-- ============ 左侧抽屉：关卡列表 ============ -->
+<div id="drawer-overlay" class="closed"></div>
+<aside id="drawer" class="closed" aria-label="关卡列表">
+  <div id="drawer-head">
+    <div>
+      <div class="dt">The Artisan of Glimmith</div>
+      <div class="ds">区域分隔 · 纸笔逻辑解谜</div>
+    </div>
+    <button id="drawer-close" class="iconbtn" title="收起列表">✕</button>
+  </div>
+
+  <div id="jump-row">
+    <input id="jump-input" type="text" autocomplete="off" spellcheck="false"
+           placeholder="输入关卡 ID 后回车跳转，如 0096">
+    <button id="jump-btn" class="iconbtn" title="跳转">↵</button>
+  </div>
+
+  <div id="zone-tabs"></div>
+  <div id="level-browser"></div>
+</aside>
+
+<div id="toast"></div>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>

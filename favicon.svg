@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 区域分隔：四块彩色玻璃 + 深色铅条边框 -->
+  <rect x="2" y="2" width="60" height="60" rx="10" fill="#e8d9b0"/>
+  <rect x="9" y="9" width="21" height="21" rx="3" fill="#5b8fc9"/>
+  <rect x="34" y="9" width="21" height="21" rx="3" fill="#c9707f"/>
+  <rect x="9" y="34" width="21" height="21" rx="3" fill="#7fb069"/>
+  <rect x="34" y="34" width="21" height="21" rx="3" fill="#d4a94a"/>
+  <path d="M32 6v52M6 32h52" stroke="#241d17" stroke-width="6" stroke-linecap="round"/>
+  <rect x="2" y="2" width="60" height="60" rx="10" fill="none" stroke="#241d17" stroke-width="5"/>
+</svg>
