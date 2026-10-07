@@ -56,15 +56,16 @@
         </div>
         <p class="hint" id="mode-hint"></p>
       </div>
-      <div class="card">
-        <h3>颜色</h3>
+      <!-- 色板只对涂鸦的铅笔颜色有意义，其它模式下一律隐藏（见 play.js 的 setTool） -->
+      <div class="card hidden" id="color-card">
+        <h3>铅笔颜色</h3>
         <div id="swatches"></div>
-        <p class="hint">填充模式下相邻区域不会自动合并，只有在一次拖动里同时划过两个区域时才会合并。</p>
+        <p class="hint">涂鸦模式下用这个颜色画线。区域的颜色是自动分配的，与这里无关。</p>
       </div>
       <div class="card">
         <h3>操作</h3>
         <p class="hint">
-          <b>填充</b>：左键拖拽划过格子<br>
+          <b>填充</b>：左键拖拽划过格子；点一下已填色的区域可换色<br>
           <b>划线</b>：左键沿格边拖拽画墙<br>
           <b>擦除</b>：贴着墙擦墙，否则擦掉该格涂色<br>
           鼠标右键 = 只擦掉该格涂色（不动墙）<br>

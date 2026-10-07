@@ -4,6 +4,16 @@
 
 import { cellGlyph, edgeBadge } from './boardGlyphs.js';
 
+/**
+ * SVG 命名空间。
+ *
+ * ⚠️ 以前这是**每个方法各自声明一份**的局部常量，结果有两次新写的方法里忘了声明，
+ * 直接 `document.createElementNS(NS, ...)` 就报 `NS is not defined` ——
+ * 而且都在运行时才炸、Node 侧的桩 DOM 还照不出来（桩不检查命名空间）。
+ * 提到模块级，这类错误从根上消失。
+ */
+const NS = 'http://www.w3.org/2000/svg';
+
 const PALETTE = [
   '#4a6fa5', '#a55a6f', '#6f9f5a', '#b08a3e', '#7a5aa5',
   '#3f8fa0', '#a56f3f', '#5a7fa5', '#9f5a8f', '#5aa57f',
@@ -279,7 +289,6 @@ export class Renderer {
     this.svg.setAttribute('height', h);
     this.svg.innerHTML = '';
 
-    const NS = 'http://www.w3.org/2000/svg';
     const gCells = document.createElementNS(NS, 'g');
     const gDashes = document.createElementNS(NS, 'g');
     // 墙分**两个全局图层**：先铺满所有深色外描边，再统一压上所有内芯金线。
@@ -296,7 +305,10 @@ export class Renderer {
     // 涂鸦在最上层：玩家的批注要压在所有东西之上
     const gDoodle = document.createElementNS(NS, 'g');
     gDoodle.setAttribute('id', 'g-doodle');
-    this.svg.append(gCells, gDashes, gWalls, gWallsInner, gEdgeClues, gHover, gSymbols, gDoodle);
+    // 区域填充单独一层：**一个区域画成一条 path**（见 paintCells）
+    const gRegions = document.createElementNS(NS, 'g');
+    gRegions.setAttribute('id', 'g-regions');
+    this.svg.append(gCells, gRegions, gDashes, gWalls, gWallsInner, gEdgeClues, gHover, gSymbols, gDoodle);
     this.gCells = gCells;
     this.gDashes = gDashes;
     this.gWalls = gWalls;            // 所有外描边：边框 / 预置墙 / 玩家墙
@@ -305,23 +317,17 @@ export class Renderer {
     this.gHover = gHover;
     this.gSymbols = gSymbols;
     this.gDoodle = gDoodle;
-    this.cellEls = new Map();
+    this.gRegions = gRegions;
+    /** 区域号(0=空格子) -> <path>；跨次 paint 复用，换色才有 CSS 过渡 */
+    this.regionEls = new Map();
 
     const x = (c) => pad + c * s;
     const y = (r) => pad + r * s;
 
-    // 单元格
-    for (const { r, c, id } of this.board.cells) {
-      const rect = document.createElementNS(NS, 'rect');
-      rect.setAttribute('x', x(c));
-      rect.setAttribute('y', y(r));
-      rect.setAttribute('width', s);
-      rect.setAttribute('height', s);
-      rect.setAttribute('class', 'cell empty');
-      rect.dataset.cell = `${r},${c}`;
-      gCells.appendChild(rect);
-      this.cellEls.set(id, rect);
-    }
+    // 格子不再逐格画 <rect> —— 上色统一交给 gRegions 里「一个区域一条 path」。
+    // 逐格 rect 在相邻两格的公共边上会被各自独立抗锯齿，屏幕上留下一条发丝缝，
+    // 区域看上去像被切成小块（见 paint() 的注释）。
+    void gCells;
 
     // 格内符号：交给 boardGlyphs 画成**可视化图形**，不再直接摆 "S1" / "P2" 这样的字面量。
     //   S<n> -> 该形状的迷你拼块      P<n> -> 玫瑰窗徽章
@@ -348,7 +354,6 @@ export class Renderer {
    *   3. 玩家画的墙 —— 金色实线
    */
   paintWalls() {
-    const NS = 'http://www.w3.org/2000/svg';
     const s = this.cellSize;
     const pad = this.pad;
     // 基准 44px 格；线宽按比例缩放并夹在 0.8~2.2 倍，既不糊也不飘
@@ -392,6 +397,19 @@ export class Renderer {
       return !this.board.isCell(r + DR[dir], c + DC[dir]);
     };
 
+    /**
+     * 这条格边是不是「某个区域的内部」——两侧格子已划进**同一个区域**。
+     * 内部的虚线不画，整块区域看上去才是一个整体，而不是几格拼起来的。
+     * （同区域内部必然没有墙，所以不用再单独判断墙。）
+     */
+    const isRegionInner = (r, c, dir) => {
+      const DR = [-1, 0, 1, 0];
+      const DC = [0, 1, 0, -1];
+      const a = this.board.regionOf(r, c);
+      if (a <= 0) return false;
+      return this.board.regionOf(r + DR[dir], c + DC[dir]) === a;
+    };
+
     // 按「预置墙 / 玩家墙 / 外边框 / 虚线」分桶收集线段，
     // 之后逐桶把首尾相接的线段**合并成连续折线**再画。
     // 逐条画 <line> 的话，转角处两条线各自收笔（圆头），接缝会露出来，很难看。
@@ -407,7 +425,8 @@ export class Renderer {
         if (given) buckets.given.push(segv);
         else if (user) buckets.user.push(segv);
         else if (outer) buckets.outer.push(segv);
-        else buckets.dash.push(segv);
+        // 区域内部的虚线直接不画：让连通的区域看起来是**一整块**
+        else if (!isRegionInner(r, c, d)) buckets.dash.push(segv);
       }
     }
 
@@ -438,16 +457,64 @@ export class Renderer {
     for (const verts of userPaths) mkPath(gi, 'uwall-inner', USER_IN, verts);
   }
 
-  /** 重绘区域颜色 */
+  /**
+   * 重绘区域颜色。
+   *
+   * ⚠️ **一个区域画成一条 `<path>`**，而不是每格一个 `<rect>`。
+   * 逐格 rect 时，相邻两格的公共边会被各自独立抗锯齿，屏幕上会留一条
+   * 发丝般的浅色缝（横向/纵向各一条，区域看着像被切成小块）。
+   * 同一个 path 里的多个子路径按 nonzero 规则合成**一次填充**，
+   * 内部公共边根本不存在，缝自然也没有了。
+   *
+   * path 按区域号缓存复用：这样「点一下换色」还能吃到 CSS 的 fill 过渡。
+   */
   paint() {
     const board = this.board;
-    for (const { r, c, id } of board.cells) {
-      const el = this.cellEls.get(id);
-      if (!el) continue;
+    const s = this.cellSize;
+    const pad = this.pad;
+
+    // 按区域把格子归堆（区域号 0 = 空格子）
+    const buckets = new Map();
+    for (const { r, c } of board.cells) {
       const rid = board.regionOf(r, c);
-      const color = this.colorFor ? this.colorFor(rid) : colorForRegion(rid);
+      if (!buckets.has(rid)) buckets.set(rid, []);
+      buckets.get(rid).push({ r, c });
+    }
+
+    // 清掉本轮不再需要的 path（例如区域被擦掉了）
+    for (const [rid, el] of this.regionEls) {
+      if (!buckets.has(rid)) {
+        el.remove();
+        this.regionEls.delete(rid);
+      }
+    }
+
+    for (const [rid, cells] of buckets) {
+      // 每格一个子路径：M x y h s v s h -s Z（同一个绕向，nonzero 下自然并集）
+      const d = cells
+        .map(({ r, c }) => `M${(pad + c * s).toFixed(2)} ${(pad + r * s).toFixed(2)}h${s}v${s}h${-s}Z`)
+        .join('');
+      let el = this.regionEls.get(rid);
+      if (!el) {
+        el = document.createElementNS(NS, 'path');
+        el.setAttribute('class', 'region-fill');
+        el.setAttribute('shape-rendering', 'crispEdges');
+        this.gRegions.appendChild(el);
+        this.regionEls.set(rid, el);
+      }
+      el.setAttribute('d', d);
+      if (!rid) {
+        el.setAttribute('fill', 'rgba(255, 255, 255, .06)');
+        el.setAttribute('class', 'region-fill empty');
+        continue;
+      }
+      // 玩家给这个区域挑过色就用他的，否则走自动配色
+      const tint = board.tintOf?.(rid) ?? 0;
+      const color = tint
+        ? colorForRegion(tint)
+        : (this.colorFor ? this.colorFor(rid) : colorForRegion(rid));
       el.setAttribute('fill', color ?? 'rgba(80,62,40,0.10)');
-      el.setAttribute('class', `cell${rid ? '' : ' empty'}`);
+      el.setAttribute('class', 'region-fill');
     }
     this.paintWalls();
     this.paintEdgeClues();
@@ -468,7 +535,6 @@ export class Renderer {
     while (g.firstChild) g.removeChild(g.firstChild);
     const edges = this.board?.puzzle?.edges ?? [];
     if (!edges.length) return;
-    const NS = 'http://www.w3.org/2000/svg';
     const s = this.cellSize;
     const pad = this.pad;
 
@@ -602,7 +668,6 @@ export class Renderer {
   paintDoodles(doodle) {
     const g = this.gDoodle;
     if (!g) return;
-    const NS = 'http://www.w3.org/2000/svg';
     while (g.firstChild) g.removeChild(g.firstChild);
     const strokes = doodle?.strokes ?? [];
     if (!strokes.length) return;
@@ -633,6 +698,11 @@ export class Renderer {
   }
 
   /** 为「颜色」面板生成一整套高区分度的玻璃色 */
+  /** 调色板有几种颜色（输入层随机换色时要用） */
+  get colorCount() {
+    return PALETTE.length;
+  }
+
   static palette() {
     return PALETTE.slice();
   }
@@ -832,7 +902,6 @@ export class Renderer {
    *   kind='vertex' 时画一个棱形顶点；remove=true 表示拖走会**取消**这条线。
    */
   showCursor(hint) {
-    const NS = 'http://www.w3.org/2000/svg';
     const g = this.gHover;
     if (!g) return;
     while (g.firstChild) g.removeChild(g.firstChild);

@@ -77,6 +77,11 @@ export function attachInput({ svg, renderer, board: initialBoard, onChange, onBe
   let dirty = false;
   /** 这一笔是否真的落过线（用于「点了格点却没拖动」时退化成填充） */
   let placedLine = false;
+  /** 「点一下」判定：按下时所在格子、是否已有涂色、有没有拖开 */
+  let pressCell = null;
+  let pressFilled = false;
+  let pressAt = null;
+  let pressMoved = false;
   // 划线模式状态
   let anchor = null;          // **当前**格点 { r, c }；连续划线时随每条边推进
   let dragStart = null;       // 屏幕起点
@@ -236,6 +241,16 @@ export function attachInput({ svg, renderer, board: initialBoard, onChange, onBe
     dragStart = { x: ev.clientX, y: ev.clientY };
     renderer.showCursor(null);
 
+    // 记录「按下的这一格是否已经有涂色」——松手时若没拖动过，就当成一次点击，
+    // 给这个区域换个颜色（填充模式）。
+    {
+      const hp = renderer.hitPoint(ev.clientX, ev.clientY);
+      pressCell = hp ? { r: hp.r, c: hp.c } : null;
+      pressFilled = !!pressCell && board.regionOf(pressCell.r, pressCell.c) > 0;
+      pressAt = { x: ev.clientX, y: ev.clientY };
+      pressMoved = false;
+    }
+
     const erase = ev.button === 2;
     dbg(`[${erase ? '右键' : '左键'}] mode=${mode} cell=(${cell.r},${cell.c}) ` +
         `vertex=${vertex ? `(${vertex.r},${vertex.c},${vertex.dist.toFixed(1)}px)` : '-'} ` +
@@ -302,6 +317,9 @@ export function attachInput({ svg, renderer, board: initialBoard, onChange, onBe
   /* ---------------- pointermove（拖动中） ---------------- */
   svg.addEventListener('pointermove', (ev) => {
     if (!dragging || !strokeKind) return;
+    // 超过 5px 就算「拖动」，不再视为点击
+    if (!pressMoved && pressAt
+      && Math.hypot(ev.clientX - pressAt.x, ev.clientY - pressAt.y) > 5) pressMoved = true;
 
     if (strokeKind === 'doodle') {
       const p0 = renderer.pointerCell(ev.clientX, ev.clientY);
@@ -419,6 +437,15 @@ export function attachInput({ svg, renderer, board: initialBoard, onChange, onBe
     // 点击本来就画不出线（画线要靠拖动），所以这里退化成填充 ——
     // 否则格点捕获圈一偏，用户就会觉得「点了没反应」。
     // 手机上的大盘尤其明显：格子 20px 时捕获圈相对很大，点偏一点就落到圈里。
+    // ★ 点一下已填色的区域 = 换个颜色（纯外观）。只在填充模式生效。
+    //   拖动过就不算点击，否则每次涂完松手都会顺手换色。
+    if (ev?.type !== 'pointercancel' && mode === 'both'
+      && pressFilled && !pressMoved && pressCell) {
+      const id = board.regionOf(pressCell.r, pressCell.c);
+      if (id > 0 && board.rerollRegionColor?.(id, renderer.colorCount)) {
+        onChange?.();
+      }
+    }
     if (strokeKind === 'doodle') {
       doodle?.end();
       onChange?.();                      // 收笔才走「重量级」刷新 + 存档

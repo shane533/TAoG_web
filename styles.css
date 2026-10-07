@@ -571,8 +571,9 @@ body::before {
 #toast.bad { border-color: #b4453c; color: #f4c3bd; }
 
 /* ================= 棋盘 SVG ================= */
-#board .cell { transition: fill .12s; }
-#board .cell.empty { fill: rgba(255, 255, 255, .06); }
+/* 区域填充：一个区域一条 path（逐格 rect 的抗锯齿会在公共边留发丝缝） */
+#board .region-fill { transition: fill .12s; }
+#board .region-fill.empty { fill: rgba(255, 255, 255, .06); }
 /* 边框与预制墙：**风格统一**——都是深色描边 + 暖色内芯，粗细也一致
    （原来边框 4.2 / 预制墙 7.5，两者差得太多，看着像两种东西） */
 #board .wall, #board .gwall { stroke: #1c1409; fill: none; }

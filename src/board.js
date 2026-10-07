@@ -41,6 +41,14 @@ export class Board {
 
     /** 填充出来的区域归属 */
     this.paint = Array.from({ length: this.rows }, () => new Array(this.cols).fill(0));
+    /**
+     * 区域配色覆盖：区域号 -> 调色板下标(1..N)。**纯外观**，
+     * 不影响划分、也不参与任何规则判定。没记录的走自动配色。
+     *
+     * 用区域号当键是安全的：合并走 `_rename(from, to)`，存活那个号的记录自然保留；
+     * 分裂时第一块保留原号、其余拿新号（下面会把配色一起复制过去）。
+     */
+    this.tint = new Map();
     this.nextRegionId = 1;
 
     // 有效格集合 & 邻接（同时考虑 PUZZLE 墙与玩家墙）
@@ -364,6 +372,9 @@ export class Board {
       for (let i = 1; i < comps.length; i++) {
         const newId = this.nextRegionId++;
         for (const { r, c } of comps[i]) this.paint[r][c] = newId;
+        // 配色跟着分过去，免得同一个区域被切开后两半颜色不一样
+        const t = this.tint.get(rid);
+        if (t) this.tint.set(newId, t);
       }
     }
     return splitCount;
@@ -386,6 +397,32 @@ export class Board {
   }
 
   /* ---------------- 区域视图 ---------------- */
+
+  /* ---------------- 区域配色（纯外观） ---------------- */
+
+  /** 区域号 -> 配色下标；0 表示用自动配色 */
+  tintOf(regionId) {
+    return this.tint.get(regionId) ?? 0;
+  }
+
+  /**
+   * 给某个区域随机换一个配色。
+   * @param {number} regionId
+   * @param {number} nColors 调色板长度
+   * @param {() => number} [rnd] 便于测试注入
+   * @returns {boolean} 是否真的改了
+   */
+  rerollRegionColor(regionId, nColors, rnd = Math.random) {
+    if (!regionId || regionId <= 0 || !(nColors >= 2)) return false;
+    const cur = this.tint.get(regionId) ?? 0;
+    // 1..nColors 里随机挑一个，且**必须和当前不同**（否则点了没反应）
+    let next = 1 + Math.floor(rnd() * nColors);
+    if (next > nColors) next = nColors;
+    if (next < 1) next = 1;
+    if (next === cur) next = (next % nColors) + 1;
+    this.tint.set(regionId, next);
+    return true;
+  }
 
   regionOf(r, c) {
     if (!this.isCell(r, c)) return 0;
@@ -413,6 +450,7 @@ export class Board {
   clear() {
     for (let r = 0; r < this.rows; r++) this.paint[r].fill(0);
     this.nextRegionId = 1;
+    this.tint.clear();
   }
 
   /** 「重新开始」：清空涂色 + 清空所有玩家墙，恢复关卡初始状态 */
@@ -440,6 +478,8 @@ export class Board {
       paint: this.paint.map((row) => row.slice()),
       walls: this.userWalls.map((row) => row.map((w) => w.slice())),
       nextRegionId: this.nextRegionId,
+      // 配色也进快照，否则撤销一次颜色就回去了
+      tint: [...this.tint],
     };
   }
 
@@ -448,6 +488,7 @@ export class Board {
     this.paint = snap.paint.map((row) => row.slice());
     this.userWalls = snap.walls.map((row) => row.map((w) => w.slice()));
     this.nextRegionId = snap.nextRegionId;
+    this.tint = new Map(snap.tint ?? []);
     this._refreshAdjacency();
   }
 
