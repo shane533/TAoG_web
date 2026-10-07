@@ -113,7 +113,8 @@ export function createPlayView({ store, onContinue, onSolved }) {
         onDoodle: () => renderer.paintDoodles(doodles),
       });
     } else {
-      renderer.setBoard(board);
+      // 紧接着末尾的 afterChange() 会统一重绘一次，这里先别画
+      renderer.setBoard(board, { paint: false });
       // 输入层的事件监听只注册一次，所以每次切关都要把当前棋盘告诉它，
       // 否则操作会落在上一关的棋盘上（表现为「切关后填不上」）。
       input.setBoardRef(board);
@@ -136,7 +137,8 @@ export function createPlayView({ store, onContinue, onSolved }) {
         // 墙不参与区域合并，恢复时无需重算
       }
     }
-    repaint();
+    // 这里**不**重绘：下面 afterChange() 会画，重复画只是白烧一遍
+    // 全盘描线追踪 + 所有线索徽章（实测原来一次进关会画 3 遍）
     setTool(input?.getMode() ?? 'both');
 
     $('#crumb-zone').textContent = puzzle.zone ?? '';

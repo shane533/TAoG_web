@@ -1,5 +1,71 @@
 # 更新记录
 
+## 0.15.3 — 2026-10-06（patch・进新关卡的卡顿）
+
+用户反馈：每次进下一关都有一点轻微卡顿。
+
+### 先量，不猜
+
+Chrome 的 `--virtual-time-budget` 下 `performance.now()` 在同一次任务里不往前走，
+所以**计时这条路走不通**，改成**数操作次数**（DOM 变动数同样可靠）。
+插桩统计「跳一关」的全部工作：
+
+```
+[选关抽屉]
+  renderList            2 次      ← 整份列表建了两遍
+  renderList.rows     956 个      ← 建了 956 个 .level 行
+  renderList.innerHTML 18 次      ← 18 次 innerHTML 解析
+[渲染]
+  paint                 3 次      ← 全盘重绘跑了三遍
+  paint.paintWalls      3 次      ← 描线追踪三遍
+  paint.paintEdgeClues  3 次      ← 所有线索徽章重建三遍
+[界面]
+  validate / renderRules / renderShapes   各 1 次  ✓ 这块没问题
+```
+
+两个大头都很明确。
+
+### 优化 ①：一个区域的列表不再整份重建
+
+`openLevel()` 每次都调 `browser.refresh()`，而 `refresh()` 会 `renderList()`
+把整个区的列表**重建一遍**（一个区约 478 行，每行还走一次 `innerHTML` 解析 +
+两次 `querySelector`）。可实际上变化的只有「哪一行高亮 + 几个计数」。
+
+改成：
+
+* `renderList()` 顺手把行元素 / 组计数元素的引用存进 `rowEls` / `groupCountEls`
+* 新增 `updateListState()`：**只改类名与文本**，不碰 DOM 结构
+* `refresh()` 里判断「结构没变」（同一个区、列表还在）就走轻量路径
+
+### 优化 ②：进关卡只重绘一遍
+
+`paint()` 被调了 3 次：`rebuild()` 末尾自动来一次、`load()` 里 `repaint()` 一次、
+`afterChange()` 又一次。后两次纯属重复（每次都要重跑全盘描线追踪 + 重建所有线索徽章）。
+
+* `setBoard(board, opts)` / `rebuild(opts)` 支持 `{ paint: false }`
+* `load()` 里用 `setBoard(board, { paint: false })`，并删掉那次多余的 `repaint()`
+* 末尾的 `afterChange()` 统一画一次（`rebuild()` 的自动重绘保留 ——
+  窗口尺寸变化时还是靠它）
+
+### 效果
+
+```
+进一次关（17x14 大盘）的 DOM 变动：
+  改前：956 个列表行重建 + 2 次多余全盘重绘
+  改后：新增 197 个节点 / 删除 33 / 属性改动 8
+```
+
+新增的 197 个节点全来自「新关卡本来就要画的棋盘」（区域路径、符号、线索徽章）；
+478 行列表**原地保留**，只有 8 处属性变动（高亮 + 计数）。
+
+> 测量手段顺便记一笔：虚拟时间下计时不可用，但 `MutationObserver` 数出来的
+> DOM 变动量很可靠，而且比计时更贴近「卡不卡」这件事本身。
+
+14 套测试全绿；连续跳 5 个不同类型的关卡，虚线、差值徽章、双生/异生、预置墙、
+规则卡全部正常。
+
+## 0.15.2 — 2026-10-06（patch・区域内的发丝缝）
+
 ## 0.15.2 — 2026-10-06（patch・区域内的发丝缝）
 
 用户报：区域横向的格子之间是无缝的，纵向之间却有一条白线。

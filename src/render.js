@@ -166,10 +166,17 @@ export class Renderer {
     this._ro.observe(frame);
   }
 
-  setBoard(board) {
+  /**
+   * 换棋盘。
+   * @param {object} [opts]
+   * @param {boolean} [opts.paint=true] 重建后是否立刻重绘。
+   *   调用方如果**紧接着还会统一重绘一次**（例如 play.js 的 load() 末尾会走
+   *   afterChange），就传 false —— 每少画一次就少一遍全盘描线追踪与线索徽章重建。
+   */
+  setBoard(board, opts) {
     this.board = board;
     this.wrongCells = new Set();
-    this.rebuild();
+    this.rebuild(opts);
   }
 
   /**
@@ -268,7 +275,7 @@ export class Renderer {
     return Math.max(16, Math.min(Math.floor(s), 170));
   }
 
-  rebuild() {
+  rebuild(opts) {
     const { cols, rows } = this.board;
     this.cellSize = this._fitCellSize();
     const s = this.cellSize;
@@ -344,7 +351,8 @@ export class Renderer {
     // rebuild 会清空整个 SVG，所以「已经画过内容」时要立刻重画一遍。
     // 否则 ResizeObserver 触发的 rebuild 会把墙、虚线、边线索全清掉
     // （表现为：棋盘只剩一片空底色）。
-    if (this._painted) this.paint();
+    // 只有画过盘的才需要跟着重画（窗口尺寸变了）；显式要求延后的就跳过
+    if (this._painted && opts?.paint !== false) this.paint();
   }
 
   /**

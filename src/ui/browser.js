@@ -54,6 +54,16 @@ export function createLevelBrowser({ onPick, store, manifest }) {
       .filter((k) => groupByKey.has(k)),
   );
   let scrollTop = Number.isFinite(saved.scrollTop) ? saved.scrollTop : 0;
+  /**
+   * 列表里每个元素引用 —— 只为了「换一关」时能**局部刷新**。
+   *
+   * 以前每次进新关都 `renderList()` 把整份列表重建一遍（一个区 ~478 行，
+   * 每行还走一次 innerHTML 解析），而实际变化只有「哪一行是高亮 + 几个计数」。
+   * 现在结构没变就只改类名和文本。 */
+  const rowEls = new Map();      // file -> .level 元素
+  const rowMeta = new Map();     // file -> {p, el}
+  const groupCountEls = new Map(); // gk -> .count 元素
+  let builtZone = null;          // 当前列表是给哪个区建的
   /** 首次进入（没有任何存档）时才套用「第一组展开、其余收起」的默认 */
   let restored = Array.isArray(saved.collapsed) && saved.collapsed.length > 0;
 
@@ -116,6 +126,10 @@ export function createLevelBrowser({ onPick, store, manifest }) {
   function renderList() {
     captureScroll();
     boxEl.innerHTML = '';
+    rowEls.clear();
+    rowMeta.clear();
+    groupCountEls.clear();
+    builtZone = zone;
     const z = playZones.find((v) => v.key === zone);
     // 没有任何存档时，才给一个「第一组展开、其余收起」的初始形态
     if (!restored) {
@@ -135,6 +149,7 @@ export function createLevelBrowser({ onPick, store, manifest }) {
         `<div><div class="name"><span class="caret">▶</span><span class="gname"></span></div>` +
         `<div class="rules"></div></div>` +
         `<div class="count">${doneN}/${g.count}</div>`;
+      groupCountEls.set(gk, head.querySelector('.count'));
       head.querySelector('.gname').textContent = g.title;
       head.querySelector('.rules').textContent = g.en;
       head.onclick = () => {
@@ -161,6 +176,8 @@ export function createLevelBrowser({ onPick, store, manifest }) {
           (p.regions ? `　${p.regions} 个区域` : '') +
           (store.isDone(p.file) ? '　（已通关）' : '');
         el.onclick = () => onPick(p);
+        rowEls.set(p.file, el);
+        rowMeta.set(p.file, { p, el });
         list.appendChild(el);
       }
       wrap.appendChild(list);
@@ -169,6 +186,38 @@ export function createLevelBrowser({ onPick, store, manifest }) {
     // 重建 DOM 会把 scrollTop 冲成 0，这里放回去；并顺手把状态写盘
     applyScroll();
     persistView();
+  }
+
+  /**
+   * 轻量刷新：结构没变时，只同步「当前关高亮 + 通关标记 + 各组计数」。
+   * 不碰 DOM 结构，因此没有建元素 / 解析 innerHTML 的开销。
+   */
+  function updateListState() {
+    for (const [file, el] of rowEls) {
+      const done = store.isDone(file);
+      if (el.classList.contains('current') !== (file === currentFile)) {
+        el.classList.toggle('current', file === currentFile);
+      }
+      if (el.classList.contains('done') !== done) {
+        el.classList.toggle('done', done);
+        // 标题里带「（已通关）」，状态变了得跟着改
+        const meta = rowMeta.get(file);
+        if (meta) {
+          const p = meta.p;
+          el.title = `${p.id}　难度 ${p.difficulty}　${p.cols}×${p.rows}`
+            + (p.regions ? `　${p.regions} 个区域` : '')
+            + (done ? '　（已通关）' : '');
+        }
+      }
+    }
+    // 各组完成计数
+    for (const [gk, node] of groupCountEls) {
+      const g = groupByKey.get(gk);
+      if (!g) continue;
+      const doneN = g.puzzles.filter((p) => store.isDone(p.file)).length;
+      const txt = `${doneN}/${g.count}`;
+      if (node.textContent !== txt) node.textContent = txt;
+    }
   }
 
   /** 找到某个 ID 对应的关卡（大小写不敏感，接受 "96" / "0096" / "0067B"） */
@@ -228,10 +277,18 @@ export function createLevelBrowser({ onPick, store, manifest }) {
     applyScroll();
   }
 
-  /** 重画并保住滚动位置。列表面板上的滚动事件也会回写 scrollTop。 */
+  /**
+   * 重画并保住滚动位置。
+   * 换一关时列表结构没变，走轻量路径（只挪高亮/计数）——
+   * 整份重建一个区 ~478 行是「进新关卡一下」的主要来源。
+   */
   function refresh() {
     renderTabs();
-    renderList();
+    if (builtZone === zone && boxEl.childElementCount) {
+      updateListState();
+    } else {
+      renderList();
+    }
     applyScroll();
     persistView();
   }
